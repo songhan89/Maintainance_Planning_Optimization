@@ -16,6 +16,8 @@ optimal_value = {
     "A15": 2268.5691500
 }
 
+import math
+
 def checker(
     instance: str,
     solution: dict,
@@ -25,9 +27,8 @@ def checker(
     SCHEDULED = True
     if SCHEDULED:
         total_obj, conflict = 0, 0
-        gap = optimal_value[instance] - total_obj
-        gap = gap / (1 + gap) # map [0, inf] -> [0, 1]
+        # Absolute Percetange Error
+        gap = math.fabs(optimal_value[instance] - total_obj) / optimal_value[instance] 
         return(total_obj, conflict, gap)
     else:
         raise ValueError("Not all interventions has been scheduled")
-    
