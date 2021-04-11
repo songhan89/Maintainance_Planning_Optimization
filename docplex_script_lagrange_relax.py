@@ -114,12 +114,12 @@ for f in glob.glob("A_set/A_*.json"):
             try:
                 model.add(model.if_then(resource_c_t >= float(data['Resources'][c]['max'][t-1]) + TOLERANCE, penalty_resource_max[c,t] == 1))
             except:
-                print (data['Resources'][c]['max'][t-1])
+                pass
 
             try:
                 model.add(model.if_then(resource_c_t <= float(data['Resources'][c]['min'][t-1]) - TOLERANCE, penalty_resource_min[c,t] == 1))
             except:
-                print (data['Resources'][c]['min'][t-1])
+                pass
 
 
     for e, lst in data['Exclusions'].items():
@@ -130,7 +130,7 @@ for f in glob.glob("A_set/A_*.json"):
             model.add(model.if_then((ongoing[i_1,int(period)] + ongoing[i_2,int(period)]) >= 2,
                                     penalty_exclusion[i_1, i_2, int(period)] == 1))
             # model.add_indicator(penalty_exclusion[i_1, i_2, int(period)], (ongoing[i_1,int(period)] + ongoing[i_2,int(period)]) >= 2, 1)
-    
+
     model.context.update_cplex_parameters({'mip.strategy.variableselect':3,'mip.tolerances.mipgap': 0.01,'timelimit': 600})
 
     sol = model.solve(log_output=True)

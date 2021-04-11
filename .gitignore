@@ -5,8 +5,11 @@ __pycache__/
 
 # C extensions
 *.so
+run.cmd
+RTE_ChallengeROADEF2020_checker.py
 
 # Distribution / packaging
+A_set/
 .Python
 build/
 develop-eggs/
