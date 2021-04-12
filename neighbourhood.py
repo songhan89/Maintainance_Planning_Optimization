@@ -6,9 +6,11 @@ Lasrt update on Wed Feb 12 10:35:00 2020
 @author: rte-challenge-roadef-2020-team
 """
 import os
+import datetime
 import sys
 import numpy as np
 import json
+import glob
 
 
 ####################
@@ -42,15 +44,45 @@ NEIGHBORHOOD_SIZE= 50
 TOP_K= 5
 TIME_WINDOW= 5
 PROB_CHANGE = 0.98
-# TIME_WINDOW= 10
-# PROB_CHANGE = 0.6
+#For A06
+# COST_P_RESOURCE = 50
+# COST_P_EXCLUDE = 50
+# TIME_WINDOW= 20
+# PROB_CHANGE = 0.8
 
-def local_beam_search(solution_list, solution: dict, k=TOP_K):
+#For A01
+COST_P_RESOURCE = 20
+COST_P_EXCLUDE = 20
+TIME_WINDOW= 5
+PROB_CHANGE = 0.98
+
+
+
+optimal_value = {
+    "A_01": 1767.8156110,
+    "A_02": 4671.3766110,
+    "A_03": 848.1786111,
+    "A_04": 2085.8760540,
+    "A_05": 635.2217857,
+    "A_06": 590.6235989,
+    "A_07": 2272.7822740,
+    "A_08": 744.2932352,
+    "A_09": 1507.2847840,
+    "A_10": 2994.8487350,
+    "A_11": 495.2557702,
+    "A_12": 789.6349276,
+    "A_13": 1998.6621620,
+    "A_14": 2264.1243210,
+    "A_15": 2268.5691500
+}
+
+def local_beam_search(solution_list, solution: dict, optimal_value, k=TOP_K, gap=0.15):
 
     min_p_cost = 1
     min_obj_cost = 999999
+    stop_obj_cost = (1 + gap) * optimal_value
 
-    while min_obj_cost > 5000 or min_p_cost > 0:
+    while min_obj_cost > stop_obj_cost or min_p_cost > 0:
         p_cost_list = []
         obj_cost_list = []
         total_cost_list = []
@@ -73,20 +105,12 @@ def local_beam_search(solution_list, solution: dict, k=TOP_K):
         min_idx = sorted_idx_top_k[0]
         min_obj_cost = obj_cost_list[min_idx]
         min_p_cost = p_cost_list[min_idx]
-        print (obj_cost_list[min_idx], p_cost_list[min_idx])
-        if min_obj_cost > 5000 or min_p_cost > 0:
+        print (obj_cost_list[min_idx], p_cost_list[min_idx]/COST_P_EXCLUDE)
+        if min_obj_cost > stop_obj_cost or min_p_cost > 0:
             solution_list = solution_list[sorted_idx_top_k]
             solution_list = generate_neighbourhood(solution_list=solution_list, solution=solution)
         else:
             list_to_dict(solution_list[min_idx], solution)
-
-    try:
-        with open(f"output\A_02_lbs.txt", "w") as f:
-            for itv in solution['Interventions'].keys():
-                f.write(" ".join([itv, str(solution[INTERVENTIONS_STR][itv][START_STR])]))
-                f.write("\n")
-    except:
-        print ("No solution!")
 
 
 def list_to_dict(solution_list, solution: dict):
@@ -107,6 +131,12 @@ def initial_neighbourhood(solution: dict, k=TOP_K):
     arr = [int(interventions[intervention_name][START_STR]) for intervention_name in interventions.keys()]
 
     return np.resize(arr,(k, len(arr)))
+
+def random_neighbourhood(solution: dict, k=TOP_K):
+
+    interventions = solution[INTERVENTIONS_STR]
+    arr = [[np.random.randint(1, int(interventions[intervention_name][TMAX_STR]) + 1) for intervention_name in interventions.keys()] for i in range(k)]
+    return np.array(arr)
 
 def pertubate_startime(solution_list, solution: dict):
 
@@ -392,14 +422,40 @@ def check_exclusions(Instance: dict):
 
 
 if __name__ == '__main__':
-    solution = read_json("./A_set/A_02.json")
 
-    read_solution_from_txt(solution, "./output/A_02_relaxed.txt")
+    for f in glob.glob("A_set/A_*.json"):
 
-    s = initial_neighbourhood(solution)
+        filename = os.path.basename(f).split(".")[0]
+        print(filename)
 
-    s = generate_neighbourhood(solution_list=s, solution=solution)
+        # if os.path.exists(f"output\{filename}_lbs.txt"):
+        #     continue
 
-    print (local_beam_search(s, solution))
+        solution = read_json(f)
 
+        # read_solution_from_txt(solution, "./output/A_06_relaxed.txt")
 
+        # s = initial_neighbourhood(solution)
+        start = datetime.datetime.now()
+
+        s = random_neighbourhood(solution)
+        list_to_dict(s[0], solution)
+
+        s = generate_neighbourhood(solution_list=s, solution=solution)
+
+        local_beam_search(solution_list=s, solution=solution, optimal_value=optimal_value[filename])
+
+        end = datetime.datetime.now()
+        runtime = (end - start).total_seconds()
+
+        try:
+            with open(f"output\{filename}_lbs.txt", "w") as f:
+                for itv in solution['Interventions'].keys():
+                    f.write(" ".join([itv, str(solution[INTERVENTIONS_STR][itv][START_STR])]))
+                    f.write("\n")
+
+            with open(f"output\{filename}_lbs_stats.txt", "w") as f:
+                f.write(f"Duration: {runtime} seconds, Objective Value: {compute_objective(solution)}")
+                f.write("\n")
+        except:
+            print ("No solution!")

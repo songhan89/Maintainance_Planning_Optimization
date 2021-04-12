@@ -1,0 +1,1 @@
+Duration: 6.00478 seconds, Objective Value: 5163.647368981481
