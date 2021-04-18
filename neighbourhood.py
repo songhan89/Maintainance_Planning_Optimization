@@ -35,15 +35,19 @@ RISK_STR = 'risk'
 START_STR = 'start'
 QUANTILE_STR = "Quantile"
 ALPHA_STR = "Alpha"
+OPTIMAL_LIMIT = 0.1
+TIME_LIMIT = 900
+RUNNING_LENGTH = 10
 COST_P_SCHEDULE = 200000
-# COST_P_RESOURCE = 20
-# COST_P_EXCLUDE = 20
-COST_P_RESOURCE = 5
-COST_P_EXCLUDE = 5
+COST_P_RESOURCE = 20
+COST_P_EXCLUDE = 20
+COST_COEFF = 100
 NEIGHBORHOOD_SIZE= 50
 TOP_K= 5
 TIME_WINDOW= 5
 PROB_CHANGE = 0.98
+REPORT_TIME = [60, 300, 600, 900]
+
 #For A06
 # COST_P_RESOURCE = 50
 # COST_P_EXCLUDE = 50
@@ -51,11 +55,15 @@ PROB_CHANGE = 0.98
 # PROB_CHANGE = 0.8
 
 #For A01
-COST_P_RESOURCE = 20
-COST_P_EXCLUDE = 20
-TIME_WINDOW= 5
+# COST_P_RESOURCE = 30
+# COST_P_EXCLUDE = 30
+TIME_WINDOW= 10
 PROB_CHANGE = 0.98
 
+#For A15
+# TIME_WINDOW= 10
+# PROB_CHANGE = 0.9
+TOLERANCE = 1e-5
 
 
 optimal_value = {
@@ -76,42 +84,115 @@ optimal_value = {
     "A_15": 2268.5691500
 }
 
-def local_beam_search(solution_list, solution: dict, optimal_value, k=TOP_K, gap=0.15):
+def local_beam_search(solution_list, solution: dict, optimal_value, k=TOP_K, gap=OPTIMAL_LIMIT, delta_arr=None, tmax_arr=None):
 
+    ADAPT = False
+    iteration = 0
     min_p_cost = 1
-    min_obj_cost = 999999
+    elapsed = 0
+    min_obj_cost = float("inf")
     stop_obj_cost = (1 + gap) * optimal_value
+    best_obj_cost, best_p_count = float("inf"), float("inf")
+    o_cost_running = np.array([min_obj_cost])
+    p_cost_running = np.array([min_p_cost])
+    report_list = []
+    global COST_P_RESOURCE
+    global COST_P_EXCLUDE
+    global COST_P_SCHEDULE
+    global TIME_WINDOW
+    global PROB_CHANGE
+    global REPORT_TIME
 
-    while min_obj_cost > stop_obj_cost or min_p_cost > 0:
+    start = datetime.datetime.now()
+
+
+    while (min_obj_cost > stop_obj_cost or min_p_cost > 0):
         p_cost_list = []
+        p_count_list = []
         obj_cost_list = []
         total_cost_list = []
         for s in solution_list:
             list_to_dict(s, solution)
-            p_cost = compute_penalty(solution)
+            p_cost, num_penalty = compute_penalty(solution)
             obj_cost = compute_objective(solution)
+            p_count_list.append(num_penalty)
             p_cost_list.append(p_cost)
             obj_cost_list.append(obj_cost)
             total_cost_list.append(obj_cost + p_cost)
 
         sorted_idx_top_k = np.argsort(total_cost_list)[0:TOP_K]
-        # if min_obj_cost >= 5000:
-        #     sorted_idx_top_k = np.argsort(total_cost_list)[0:TOP_K]
-        # else:
-        #     sorted_idx_top_k = np.argsort(p_cost_list)[0:TOP_K]
-        #     PROB_CHANGE = 0.99
-        #     TIME_WINDOW = 3
 
         min_idx = sorted_idx_top_k[0]
         min_obj_cost = obj_cost_list[min_idx]
         min_p_cost = p_cost_list[min_idx]
-        print (obj_cost_list[min_idx], p_cost_list[min_idx]/COST_P_EXCLUDE)
-        if min_obj_cost > stop_obj_cost or min_p_cost > 0:
-            solution_list = solution_list[sorted_idx_top_k]
-            solution_list = generate_neighbourhood(solution_list=solution_list, solution=solution)
-        else:
-            list_to_dict(solution_list[min_idx], solution)
+        iteration += 1
+        print (f"Iteration {iteration}, Objective Value:{obj_cost_list[min_idx]}, Penalty Count: {p_count_list[min_idx]}")
 
+        if obj_cost_list[min_idx] <= best_obj_cost and p_count_list[min_idx] <= best_p_count:
+            best_obj_cost = obj_cost_list[min_idx]
+            best_p_count = p_count_list[min_idx]
+            optimality_gap = (best_obj_cost - optimal_value)/optimal_value * 100
+            list_to_dict(solution_list[min_idx], solution)
+            print (f"Best so far:{best_obj_cost}, {best_p_count}")
+
+        # p_cost_running = np.append(p_cost_running, num_penalty)
+        # o_cost_running = np.append(o_cost_running, min_obj_cost)
+
+        # if len(p_cost_running) > RUNNING_LENGTH:
+        #     p_cost_running = np.delete(p_cost_running, 0)
+        #     o_cost_running = np.delete(o_cost_running, 0)
+        #     delta_p_cost = p_cost_running[1:] - p_cost_running[:-1]
+        #     mean_delta_p_cost = delta_p_cost.mean()
+        #     delta_o_cost = o_cost_running[1:] - o_cost_running[:-1]
+        #     mean_delta_o_cost = delta_o_cost.mean()
+        #     mean_p_cost = p_cost_running.mean()
+
+            # COST_P_RESOURCE = int(max(50 * (min(mean_p_cost,20)/20) , 5))
+            # COST_P_EXCLUDE = COST_P_RESOURCE
+            # PROB_CHANGE = max(0.98 * (1 - min(mean_p_cost,100)/100), 0.8)
+            # TIME_WINDOW = int(max(50 * (min(mean_p_cost,20)/20) , 5))
+            # print ("===================================")
+            # print (COST_P_RESOURCE, COST_P_EXCLUDE, TIME_WINDOW, PROB_CHANGE, mean_p_cost)
+            # print("===================================")
+
+            # if mean_delta_p_cost >= 0 or mean_delta_o_cost >= TOLERANCE:
+            #     DELTA_COST = np.random.randint(1, 11)
+            #     DELTA_WINDOW = np.random.uniform(1,10)
+            #     COST_P_RESOURCE = np.random.randint(max(COST_P_RESOURCE - DELTA_COST, 1), min(COST_P_RESOURCE + DELTA_COST, 100))
+            #     COST_P_EXCLUDE = COST_P_RESOURCE
+            #     TIME_WINDOW = np.random.randint(max(TIME_WINDOW - DELTA_WINDOW, 1), min(TIME_WINDOW + DELTA_WINDOW, 20))
+            #     PROB_CHANGE = np.random.uniform(max(PROB_CHANGE - 0.05, 0.8), min(PROB_CHANGE + 0.05, 0.98))
+            #     print (COST_P_RESOURCE, COST_P_EXCLUDE, TIME_WINDOW, PROB_CHANGE)
+            #     ADAPT = True
+            # # else:
+            # #     if ADAPT:
+            # #         DELTA_COST = np.random.randint(1, 6)
+            # #         DELTA_WINDOW = np.random.uniform(1, 3)
+            # #         TIME_WINDOW = np.random.randint(TIME_WINDOW // DELTA_WINDOW, TIME_WINDOW)
+            # #         PROB_CHANGE = np.random.uniform(PROB_CHANGE, 0.98)
+            # #         ADAPT = False
+
+        solution_list = solution_list[sorted_idx_top_k]
+        # solution_list = slow_gen_nhood(solution_list=solution_list, solution=solution, delta_arr=delta_arr,
+        #                                        tmax_arr=tmax_arr)
+        solution_list = fast_gen_nhood(solution_list=solution_list, solution=solution, delta_arr=delta_arr,
+                                                tmax_arr=tmax_arr)
+
+        elapsed = (datetime.datetime.now() - start).total_seconds()
+
+        if elapsed > TIME_LIMIT:
+            report_list.append((elapsed, best_obj_cost, best_p_count, optimality_gap))
+            print (f"Exceeded maximum time limit of {TIME_LIMIT} seconds!")
+            return report_list
+
+        if elapsed > REPORT_TIME[0]:
+            REPORT_TIME.pop(0)
+            report_list.append((elapsed, best_obj_cost, best_p_count, optimality_gap))
+
+        if best_obj_cost <= stop_obj_cost and best_p_count == 0:
+            report_list.append((elapsed, best_obj_cost, best_p_count, optimality_gap))
+            print (f"Found solution within optimality gap limit!")
+            return report_list
 
 def list_to_dict(solution_list, solution: dict):
 
@@ -119,11 +200,52 @@ def list_to_dict(solution_list, solution: dict):
     for i in range(len(solution_list)):
         solution[INTERVENTIONS_STR][INTERVENTIONS_NAMES[i]][START_STR] = solution_list[i]
 
-def generate_neighbourhood(solution_list, solution: dict):
+def slow_gen_nhood(solution_list, solution: dict, delta_arr, tmax_arr):
+
     neighbourhood_list = np.resize(solution_list, (NEIGHBORHOOD_SIZE, solution_list.shape[1]))
     neighbourhood_list = np.apply_along_axis(pertubate_startime, axis=1, arr=neighbourhood_list, solution=solution)
 
     return neighbourhood_list
+
+def fast_gen_nhood(solution_list, solution: dict, delta_arr, tmax_arr):
+
+    len_interventions = solution_list.shape[1]
+    neighbourhood_list = np.resize(solution_list, (NEIGHBORHOOD_SIZE, solution_list.shape[1]))
+    prob_mask = np.random.random(size=neighbourhood_list.shape) > PROB_CHANGE
+    step = TIME_WINDOW
+    new_list = np.random.randint(np.maximum(neighbourhood_list - step, 1), np.minimum(neighbourhood_list + step,
+                                                                                      tmax_arr + 1))
+    new_list = np.apply_along_axis(pertubate_start_time_fast, axis=1, arr=new_list, delta_arr=delta_arr,
+                        tmax_arr=tmax_arr)
+
+    neighbourhood_list[prob_mask] = new_list[prob_mask]
+
+    return neighbourhood_list
+
+def pertubate_start_time_fast(new_start_list, delta_arr, tmax_arr):
+    len_interventions = len(new_start_list)
+    mask = (new_start_list + delta_arr[[i for i in range(len_interventions)], new_start_list - 1]) > tmax_arr
+    max_val = np.maximum(tmax_arr - delta_arr[[i for i in range(len_interventions)], new_start_list - 1], 1)
+    new_start_list[mask] = max_val[mask]
+
+    return new_start_list
+
+def get_delta_tmax_array(solution: dict):
+
+    interventions = solution[INTERVENTIONS_STR]
+    interventions_names = list(solution[INTERVENTIONS_STR].keys())
+
+    len_intervention = len(interventions.keys())
+    len_t = int(solution[T_STR])
+
+    delta_arr = np.zeros(shape=(len_intervention, len_t))
+    tmax_arr = np.zeros(shape=(len_intervention))
+
+    for i in range(len_intervention):
+        delta_arr[i] = interventions[interventions_names[i]][DELTA_STR]
+        tmax_arr[i] = interventions[interventions_names[i]][TMAX_STR]
+
+    return delta_arr, tmax_arr
 
 def initial_neighbourhood(solution: dict, k=TOP_K):
 
@@ -321,15 +443,27 @@ def compute_objective(Instance: dict):
 def compute_penalty(Instance: dict):
     """Run all constraint checks"""
 
+    global COST_P_EXCLUDE
+    global COST_P_SCHEDULE
+    global COST_P_RESOURCE
+
+    obj = compute_objective(Instance)
+    COST_P_SCHEDULE = obj
+    COST_P_RESOURCE = obj/COST_COEFF
+    COST_P_EXCLUDE = COST_P_RESOURCE
+
     total_penalty_cost = 0
     # Schedule constraints
-    total_penalty_cost += COST_P_SCHEDULE * check_schedule(Instance)
+    schedule_penalty_count = check_schedule(Instance)
+    total_penalty_cost += COST_P_SCHEDULE * schedule_penalty_count
     # Resources constraints
-    total_penalty_cost += COST_P_RESOURCE * check_resources(Instance)
+    resource_penalty_count = check_resources(Instance)
+    total_penalty_cost += COST_P_RESOURCE * resource_penalty_count
     # Exclusions constraints
-    total_penalty_cost += COST_P_EXCLUDE * check_exclusions(Instance)
+    exclusion_penalty_count = check_exclusions(Instance)
+    total_penalty_cost += COST_P_EXCLUDE * exclusion_penalty_count
 
-    return total_penalty_cost
+    return total_penalty_cost, schedule_penalty_count + resource_penalty_count + exclusion_penalty_count
 
 ## Schedule constraints: §4.1 in model description
 def check_schedule(Instance: dict):
@@ -423,7 +557,7 @@ def check_exclusions(Instance: dict):
 
 if __name__ == '__main__':
 
-    for f in glob.glob("A_set/A_*.json"):
+    for f in glob.glob("A_set/A_05.json"):
 
         filename = os.path.basename(f).split(".")[0]
         print(filename)
@@ -433,17 +567,19 @@ if __name__ == '__main__':
 
         solution = read_json(f)
 
-        # read_solution_from_txt(solution, "./output/A_06_relaxed.txt")
-
+        # read_solution_from_txt(solution, "./output/A_15_relaxed.txt")
         # s = initial_neighbourhood(solution)
+
+        delta_arr, tmax_arr = get_delta_tmax_array(solution)
         start = datetime.datetime.now()
 
         s = random_neighbourhood(solution)
         list_to_dict(s[0], solution)
 
-        s = generate_neighbourhood(solution_list=s, solution=solution)
+        s = fast_gen_nhood(solution_list=s, solution=solution, delta_arr=delta_arr, tmax_arr=tmax_arr)
 
-        local_beam_search(solution_list=s, solution=solution, optimal_value=optimal_value[filename])
+        report_list = local_beam_search(solution_list=s, solution=solution, optimal_value=optimal_value[filename],
+                          delta_arr=delta_arr, tmax_arr=tmax_arr)
 
         end = datetime.datetime.now()
         runtime = (end - start).total_seconds()
@@ -455,7 +591,10 @@ if __name__ == '__main__':
                     f.write("\n")
 
             with open(f"output\{filename}_lbs_stats.txt", "w") as f:
-                f.write(f"Duration: {runtime} seconds, Objective Value: {compute_objective(solution)}")
-                f.write("\n")
+                f.write(f"Scenario: {filename}\n")
+                for runtime, best_obj_cost, best_p_count, optimal_gap in report_list:
+                    f.write(f"Duration: {runtime} seconds, Objective Value: {best_obj_cost}, "
+                            f"Penalty Count: {best_p_count}, Optimality Gap: {optimal_gap} %%")
+                    f.write("\n")
         except:
             print ("No solution!")
