@@ -1,6 +1,10 @@
 import json
 import numpy as np
 import time
+from checker import compute_objective
+from checker import compute_penalty
+from random_search import search_for_solution
+
 timing_start = time.time()
 time_lst = [60, 300, 600, 900]
 t = 0
@@ -11,8 +15,6 @@ with open("A_set//"+test_case+".json", "r") as content:
 from checker import optimal_value
 optimal_value = optimal_value[test_case]
 
-from checker import compute_objective
-from checker import compute_penalty
 
 def compute_cost(Instance):
     weight_penalty = 1000 # This shall be adjusted
@@ -23,14 +25,6 @@ def list2dict(arr, Instance):
         Instance['Interventions'][intervention_pointer[i]]['start'] = arr[i]+1
     return Instance
 
-# 我们用的是list不是dict，所以需要做一个map的dict以便稍后转成dict
-intervention_pointer = {}
-i = 0
-for intervention in Instance['Interventions'].keys():
-    intervention_pointer[i] = intervention
-    i += 1
-    
-from random_search import search_for_solution
 def update_cost_matrix(Instance):
     for i in range(5):
         best_obj = float('inf')
@@ -45,6 +39,26 @@ def update_cost_matrix(Instance):
         st = best_Instance['Interventions'][intervention_pointer[i]]['start']-1
         prob_matrix_cost[i,st] += 10
     return prob_matrix_cost,best_obj
+
+def display_info():
+    best_generation = np.array(generation_best_Y).argmin()
+    best_x = generation_best_X[best_generation]
+    best_y = generation_best_Y[best_generation]
+    penalty = compute_penalty(list2dict(best_x,Instance))
+    if penalty == 0:
+        obj = compute_objective(list2dict(best_x,Instance))
+    else:
+        penalty = 0
+    print('Duration:', round(time.time() - timing_start,2),'seconds, Objective Value: ',round(obj,2), ', Penalty Count:', penalty, ', Optimality Gap: ',round((obj/optimal_value - 1)*100,2),'%.')
+
+
+# 我们用的是list不是dict，所以需要做一个map的dict以便稍后转成dict
+intervention_pointer = {}
+i = 0
+for intervention in Instance['Interventions'].keys():
+    intervention_pointer[i] = intervention
+    i += 1
+    
 n_dim = len(Instance['Interventions'].keys())
 size_pop = 50 # 蚂蚁数量
 max_iter = 100000 # 迭代次数
@@ -53,8 +67,8 @@ beta = 2 # 适应度的重要程度
 rho = 0.1 # 信息素的挥发程度
 # 信息素矩阵，每次迭代都会更新
 # 因为有开始时间窗，对超过时间窗的开始时间置零
-Tau_ori = np.zeros((n_dim,Instance['T']))
 
+Tau_ori = np.zeros((n_dim,Instance['T']))
 i = 0
 for intervention in Instance['Interventions'].keys():
     intervention_array = np.ones((1,int(Instance['Interventions'][intervention]['tmax'])))
@@ -80,17 +94,6 @@ best_x, best_y = None, None
 prob_matrix_cost = Tau_ori.copy()
 
 solution_chance = 1
-
-def display_info():
-    best_generation = np.array(generation_best_Y).argmin()
-    best_x = generation_best_X[best_generation]
-    best_y = generation_best_Y[best_generation]
-    penalty = compute_penalty(list2dict(best_x,Instance))
-    if penalty == 0:
-        obj = compute_objective(list2dict(best_x,Instance))
-    else:
-        penalty = 0
-    print('Duration:', round(time.time() - timing_start,2),'seconds, Objective Value: ',round(obj,2), ', Penalty Count:', penalty, ', Optimality Gap: ',round((obj/optimal_value - 1)*100,2),'%.')
 
 for i in range(1,max_iter):  # 对每次迭代
     if i%10 == 0 and time.time()- timing_start > time_lst[t]:
