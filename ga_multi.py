@@ -357,7 +357,7 @@ time_lst = [60, 120, 180, 300, 600, 900]
 import datetime
 filename_dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-for iter in range(80):
+for iter in range(8000):
     best_x, best_y = ga.run(10)
 
     end_time = time.time() - start_time
