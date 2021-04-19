@@ -1,0 +1,5 @@
+Scenario: A_15
+Duration: 43.15 seconds, Objective Value: 3501.95, Penalty Count: 0, Optimality Gap: 54.37%.
+Duration: 293.44 seconds, Objective Value: 3172.84, Penalty Count: 0, Optimality Gap: 39.86%.
+Duration: 580.76 seconds, Objective Value: 3115.29, Penalty Count: 0, Optimality Gap: 37.32%.
+Duration: 894.88 seconds, Objective Value: 3115.29, Penalty Count: 0, Optimality Gap: 37.32%.

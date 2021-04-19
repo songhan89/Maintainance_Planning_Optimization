@@ -5,7 +5,7 @@ from docplex.mp.model import Model
 
 TOLERANCE = 1e-5
 
-for f in glob.glob("A_set/A_*.json"):
+for f in glob.glob("A_set/A_06.json"):
     filename = os.path.basename(f).split(".")[0]
     print (filename)
 
@@ -61,7 +61,7 @@ for f in glob.glob("A_set/A_*.json"):
     # obj_2 = risk_std / data['T']
     # # obj_2 = excess / data['T']
     # model.minimize(data['Alpha'] * obj_1 + (1 - data['Alpha']) * obj_2)
-    C1, C2 = 3000, 1000
+    C1, C2 = 1000, 1000
     penalty = 0
     for itv in data['Interventions'].keys():
         for itv2 in data['Interventions'].keys():

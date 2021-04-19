@@ -3,18 +3,19 @@
 Created on Fri Aug  9 16:39:09 2019
 Lasrt update on Wed Feb 12 10:35:00 2020
 
-@author: Wong Songhan
-
-Example
-`python localbeamsearch.py --file A_01`
+@author: rte-challenge-roadef-2020-team
 """
-import argparse
 import os
 import datetime
 import sys
 import numpy as np
 import json
 import glob
+import numpy.random as rnd
+import random
+import os
+import math
+import time
 
 
 ####################
@@ -39,59 +40,46 @@ RISK_STR = 'risk'
 START_STR = 'start'
 QUANTILE_STR = "Quantile"
 ALPHA_STR = "Alpha"
-OPTIMAL_LIMIT = 0.01
+OPTIMAL_LIMIT = 0.1
 TIME_LIMIT = 900
 RUNNING_LENGTH = 10
 COST_P_SCHEDULE = 200000
 COST_P_RESOURCE = 20
 COST_P_EXCLUDE = 20
-COST_COEFF = 20 #100
+COST_COEFF = 100
 NEIGHBORHOOD_SIZE= 50
 TOP_K= 5
-TIME_WINDOW= 10
-TIME_WINDOW_MIN = 10
-TIME_WINDOW_MAX = 30
-PROB_CHANGE = 0.95
-PROB_CHANGE_MAX = 0.98
-PROB_CHANGE_MIN = 0.8
-PROB_CHANGE_K = 50
+TIME_WINDOW= 5
+PROB_CHANGE = 0.98
 REPORT_TIME = [60, 300, 600, 900]
-ITERATION_RESTART = 30
 
 #For A06
 # COST_P_RESOURCE = 50
 # COST_P_EXCLUDE = 50
-# TIME_WINDOW= 10 #20
-# PROB_CHANGE = 0.9 #0.8
-# COST_COEFF = 100
-# NEIGHBORHOOD_SIZE= 50
-# TOP_K= 10
+# TIME_WINDOW= 20
+# PROB_CHANGE = 0.8
 
-#For A01, A05
-# COST_P_RESOURCE = 20
-# COST_P_EXCLUDE = 20
-# TIME_WINDOW= 10
-# PROB_CHANGE = 0.98
+#For A01
+# COST_P_RESOURCE = 30
+# COST_P_EXCLUDE = 30
+TIME_WINDOW= 5
+PROB_CHANGE = 0.98
 
 #For A15
 # TIME_WINDOW= 10
 # PROB_CHANGE = 0.9
 TOLERANCE = 1e-5
 
+#Simulated Annealing
+T_MAX = 3 #5
+T_CONSTANT = 900
+COST_COEFF = 1 #10
+TIME_WINDOW= 30
+PROB_CHANGE = 0.8
+COST_P_RESOURCE = 50
+COST_P_EXCLUDE = 50
 NEIGHBORHOOD_SIZE= 50
 TOP_K= 10
-ITERATION_RESTART = 50
-TIME_WINDOW= 50
-TIME_WINDOW_MIN = 10
-TIME_WINDOW_MAX = 50
-COST_P_RESOURCE = 200
-COST_P_EXCLUDE = 200
-
-# NEIGHBORHOOD_SIZE= 100
-# TOP_K= 2
-# TIME_WINDOW_MIN = 35
-# COST_P_RESOURCE = 800
-# COST_P_EXCLUDE = 800
 
 optimal_value = {
     "A_01": 1767.8156110,
@@ -111,16 +99,16 @@ optimal_value = {
     "A_15": 2268.5691500
 }
 
-def local_beam_search(solution_list, solution: dict, optimal_value, k=TOP_K, gap=OPTIMAL_LIMIT, delta_arr=None, tmax_arr=None):
+def sa(solution_list, solution: dict, optimal_value, gap=OPTIMAL_LIMIT, delta_arr=None, tmax_arr=None):
 
-    ADAPT = False
+    min_idx = 0
     iteration = 0
     min_p_cost = 1
     elapsed = 0
+    best_total_cost = float("inf")
     min_obj_cost = float("inf")
     stop_obj_cost = (1 + gap) * optimal_value
     best_obj_cost, best_p_count = float("inf"), float("inf")
-    best_total_cost = float("inf")
     o_cost_running = np.array([min_obj_cost])
     p_cost_running = np.array([min_p_cost])
     report_list = []
@@ -130,57 +118,70 @@ def local_beam_search(solution_list, solution: dict, optimal_value, k=TOP_K, gap
     global TIME_WINDOW
     global PROB_CHANGE
     global REPORT_TIME
+    global T_CONSTANT
 
     start = datetime.datetime.now()
+
 
     while (min_obj_cost > stop_obj_cost or min_p_cost > 0):
         p_cost_list = []
         p_count_list = []
         obj_cost_list = []
         total_cost_list = []
-        better_p_cost_flag = False
-        min_p_cost_idx = -1
-        feasible_flag = False
+        next_solution_list = []
+
+        T = max(T_MAX * np.exp(-elapsed/T_CONSTANT), 0.1)
 
         for idx, s in enumerate(solution_list):
             list_to_dict(s, solution)
             p_cost, num_penalty = compute_penalty(solution)
             obj_cost = compute_objective(solution)
+            total_cost = obj_cost + p_cost
             p_count_list.append(num_penalty)
             p_cost_list.append(p_cost)
             obj_cost_list.append(obj_cost)
             total_cost_list.append(obj_cost + p_cost)
 
-            if num_penalty < best_p_count:
-                better_p_cost_flag = True
-                min_p_count_idx = idx
 
-        sorted_idx_top_k = np.argsort(total_cost_list)[0:TOP_K]
-        min_idx = sorted_idx_top_k[0]
-        min_obj_cost = obj_cost_list[min_idx]
-        min_p_cost = p_cost_list[min_idx]
+            delta_E = total_cost - best_total_cost
+            prob_sa = np.exp(-delta_E/T)
+
+            # if num_penalty <= best_p_count:
+            #     best_total_cost = total_cost
+            #     min_idx = idx
+            #     best_obj_cost, best_p_count = obj_cost, num_penalty
+            #     best_sol = s
+            #     next_solution_list.append(s)
+            #     print(f"Iteration {iteration}, Total Value Best :{best_total_cost}, {best_obj_cost}, Penalty Count Best: {best_p_count}")
+            # elif prob_sa > np.random.uniform(0, 1):
+            #     next_solution_list.append(s)
+
+            if delta_E <= 0:
+                if obj_cost < best_obj_cost and num_penalty <= best_p_count:
+                    best_total_cost = total_cost
+                    min_idx = idx
+                    best_obj_cost, best_p_count = obj_cost, num_penalty
+                    best_sol = s
+                    next_solution_list.append(s)
+                    print(f"Iteration {iteration}, Total Value Best :{best_total_cost}, {best_obj_cost}, Penalty Count Best: {best_p_count}")
+            elif prob_sa > np.random.uniform(0, 1):
+                next_solution_list.append(s)
+
+        sorted_idx_top_k = np.argsort(total_cost_list)
+        min_obj_cost = obj_cost_list[sorted_idx_top_k[0]]
+        min_p_count = p_count_list[sorted_idx_top_k[0]]
+
+        optimality_gap = (best_obj_cost - optimal_value)/optimal_value * 100
         iteration += 1
+        list_to_dict(solution_list[min_idx], solution)
+        # print (f"Iteration {iteration}, Objective Value:{best_obj_cost}, Penalty Count: {best_p_count}")
 
-        print (f"Iteration {iteration}, Objective Value:{obj_cost_list[min_idx]}, Penalty Count: {p_count_list[min_idx]}")
-
-
-        if total_cost_list[min_idx] <= best_total_cost:
-            best_total_cost = total_cost_list[min_idx]
-            best_obj_cost = obj_cost_list[min_idx]
-            best_p_count = p_count_list[min_idx]
-            optimality_gap = (best_obj_cost - optimal_value)/optimal_value * 100
-            list_to_dict(solution_list[min_idx], solution)
-            print (f"Best so far:{best_obj_cost}, {best_p_count}")
-
-        if (iteration % ITERATION_RESTART) == 0 and best_p_count >= 0:
-            TIME_WINDOW = min(TIME_WINDOW_MIN + best_p_count, TIME_WINDOW_MAX)
-            PROB_CHANGE = max(PROB_CHANGE_MAX * np.exp(-best_p_count/PROB_CHANGE_K), PROB_CHANGE_MIN)
-            solution_list = initial_neighbourhood(solution)
-            print (f"Restarting with Time Window {TIME_WINDOW}, Prob Change {PROB_CHANGE}, COST {COST_P_RESOURCE}")
+        if len(next_solution_list) > 0:
+            solution_list = np.array(next_solution_list)
         else:
-            solution_list = solution_list[sorted_idx_top_k]
-        # solution_list = slow_gen_nhood(solution_list=solution_list, solution=solution, delta_arr=delta_arr,
-        #                                        tmax_arr=tmax_arr)
+            solution_list = np.array([best_sol])
+
+
         solution_list = fast_gen_nhood(solution_list=solution_list, solution=solution, delta_arr=delta_arr,
                                                 tmax_arr=tmax_arr)
 
@@ -199,7 +200,6 @@ def local_beam_search(solution_list, solution: dict, optimal_value, k=TOP_K, gap
             report_list.append((elapsed, best_obj_cost, best_p_count, optimality_gap))
             print (f"Found solution within optimality gap limit!")
             return report_list
-
 
 def list_to_dict(solution_list, solution: dict):
 
@@ -449,7 +449,7 @@ def compute_objective(Instance: dict):
 ## Launch each Constraint checks
 def compute_penalty(Instance: dict):
     """Run all constraint checks"""
-
+    #
     # global COST_P_EXCLUDE
     # global COST_P_SCHEDULE
     # global COST_P_RESOURCE
@@ -564,15 +564,9 @@ def check_exclusions(Instance: dict):
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-f", "--file", type=str, required=True)
-
-    args = parser.parse_args()
-
-    for f in glob.glob(f"A_set/{args.file}.json"):
+    for f in glob.glob("A_set/A_05.json"):
 
         filename = os.path.basename(f).split(".")[0]
-
         print(filename)
 
         # if os.path.exists(f"output\{filename}_lbs.txt"):
@@ -580,7 +574,7 @@ if __name__ == '__main__':
 
         solution = read_json(f)
 
-        # read_solution_from_txt(solution, "./output/A_06_lbs.txt")
+        # read_solution_from_txt(solution, "./output/A_15_relaxed.txt")
         # s = initial_neighbourhood(solution)
 
         delta_arr, tmax_arr = get_delta_tmax_array(solution)
@@ -591,24 +585,23 @@ if __name__ == '__main__':
 
         s = fast_gen_nhood(solution_list=s, solution=solution, delta_arr=delta_arr, tmax_arr=tmax_arr)
 
-        report_list = local_beam_search(solution_list=s, solution=solution, optimal_value=optimal_value[filename],
+        report_list = sa(solution_list=s, solution=solution, optimal_value=optimal_value[filename],
                           delta_arr=delta_arr, tmax_arr=tmax_arr)
 
         end = datetime.datetime.now()
         runtime = (end - start).total_seconds()
-        filename_dt = end.strftime("%Y%m%d_%H%M%S")
 
         try:
-            with open(f"output\{filename}_lbs_{filename_dt}.txt", "w") as f:
+            with open(f"output\{filename}_sa.txt", "w") as f:
                 for itv in solution['Interventions'].keys():
                     f.write(" ".join([itv, str(solution[INTERVENTIONS_STR][itv][START_STR])]))
                     f.write("\n")
 
-            with open(f"output\{filename}_lbs_stats_{filename_dt}.txt", "w") as f:
+            with open(f"output\{filename}_sa_stats.txt", "w") as f:
                 f.write(f"Scenario: {filename}\n")
                 for runtime, best_obj_cost, best_p_count, optimal_gap in report_list:
                     f.write(f"Duration: {runtime} seconds, Objective Value: {best_obj_cost}, "
-                            f"Penalty Count: {best_p_count}, Optimality Gap: {optimal_gap} %")
+                            f"Penalty Count: {best_p_count}, Optimality Gap: {optimal_gap} %%")
                     f.write("\n")
         except:
             print ("No solution!")

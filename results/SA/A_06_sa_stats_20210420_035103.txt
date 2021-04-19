@@ -1,0 +1,8 @@
+Scenario: A_06
+Duration: 60.076131105422974 seconds, Objective Value: 924.1440109890109, Penalty Count: 23, Optimality Gap: 56.469198438764046 %
+Scenario: A_06
+Duration: 300.1036832332611 seconds, Objective Value: 761.0789285714285, Penalty Count: 16, Optimality Gap: 28.86023010067511 %
+Scenario: A_06
+Duration: 600.0959391593933 seconds, Objective Value: 761.0789285714285, Penalty Count: 16, Optimality Gap: 28.86023010067511 %
+Scenario: A_06
+Duration: 900.0357139110565 seconds, Objective Value: 761.0789285714285, Penalty Count: 16, Optimality Gap: 28.86023010067511 %

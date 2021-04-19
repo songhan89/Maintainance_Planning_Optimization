@@ -3,7 +3,7 @@ import glob
 import os
 from docplex.mp.model import Model
 
-for f in glob.glob("A_set/A_1*.json"):
+for f in glob.glob("A_set/A_06*.json"):
     filename = os.path.basename(f).split(".")[0]
     print (filename)
 

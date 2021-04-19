@@ -1,0 +1,4 @@
+Duration: 68.36 seconds, Objective Value:  914.59 , Penalty Count: 0 , Optimality Gap:  43.98 %.
+Duration: 305.48 seconds, Objective Value:  754.69 , Penalty Count: 0 , Optimality Gap:  18.81 %.
+Duration: 617.0 seconds, Objective Value:  736.52 , Penalty Count: 0 , Optimality Gap:  15.95 %.
+Duration: 911.14 seconds, Objective Value:  726.85 , Penalty Count: 0 , Optimality Gap:  14.43 %.
